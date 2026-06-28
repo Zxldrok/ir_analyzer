@@ -58,3 +58,4 @@ typedef struct {
 IrAnalyzerApp* ir_analyzer_app_alloc(void);
 void           ir_analyzer_app_free(IrAnalyzerApp* app);
 int32_t        ir_analyzer_app(void* p);
+void           ir_analyzer_signal_callback(void* ctx, InfraredWorkerSignal* received_signal);

@@ -11,7 +11,8 @@ static bool ir_analyzer_back_event_cb(void* ctx) {
     return scene_manager_handle_back_event(app->scene_manager);
 }
 
-static void ir_analyzer_signal_callback(void* ctx, InfraredWorkerSignal* received_signal) {
+void ir_analyzer_signal_callback(void* ctx, InfraredWorkerSignal* received_signal) {
+    furi_assert(ctx);
     IrAnalyzerApp* app = ctx;
     if(app->signal_count >= IR_ANALYZER_MAX_SIGNALS) return;
 
@@ -20,7 +21,10 @@ static void ir_analyzer_signal_callback(void* ctx, InfraredWorkerSignal* receive
 
     if(infrared_worker_signal_is_decoded(received_signal)) {
         const InfraredMessage* msg = infrared_worker_get_decoded_signal(received_signal);
-        strncpy(sig->protocol, infrared_get_protocol_name(msg->protocol), sizeof(sig->protocol) - 1);
+        strncpy(
+            sig->protocol,
+            infrared_get_protocol_name(msg->protocol),
+            sizeof(sig->protocol) - 1);
         sig->address = msg->address;
         sig->command = msg->command;
         sig->repeat  = msg->repeat;
@@ -63,13 +67,14 @@ IrAnalyzerApp* ir_analyzer_app_alloc(void) {
     view_dispatcher_add_view(app->view_dispatcher, IrAnalyzerViewMain, app->view_main);
 
     app->submenu = submenu_alloc();
-    view_dispatcher_add_view(app->view_dispatcher, IrAnalyzerViewSignalList,
-                             submenu_get_view(app->submenu));
+    view_dispatcher_add_view(
+        app->view_dispatcher, IrAnalyzerViewSignalList, submenu_get_view(app->submenu));
 
     app->widget_detail = widget_alloc();
-    view_dispatcher_add_view(app->view_dispatcher, IrAnalyzerViewSignalDetail,
-                             widget_get_view(app->widget_detail));
+    view_dispatcher_add_view(
+        app->view_dispatcher, IrAnalyzerViewSignalDetail, widget_get_view(app->widget_detail));
 
+    // Worker IR — callback déclaré mais worker PAS démarré ici
     app->ir_worker = infrared_worker_alloc();
     infrared_worker_rx_set_received_signal_callback(
         app->ir_worker, ir_analyzer_signal_callback, app);
@@ -78,6 +83,7 @@ IrAnalyzerApp* ir_analyzer_app_alloc(void) {
 }
 
 void ir_analyzer_app_free(IrAnalyzerApp* app) {
+    furi_assert(app);
     infrared_worker_rx_stop(app->ir_worker);
     infrared_worker_free(app->ir_worker);
 
@@ -101,6 +107,7 @@ int32_t ir_analyzer_app(void* p) {
     UNUSED(p);
     IrAnalyzerApp* app = ir_analyzer_app_alloc();
     scene_manager_next_scene(app->scene_manager, IrAnalyzerSceneMain);
+    // Worker démarré APRÈS que la scène est prête
     infrared_worker_rx_start(app->ir_worker);
     view_dispatcher_run(app->view_dispatcher);
     ir_analyzer_app_free(app);
