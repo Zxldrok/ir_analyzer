@@ -1,16 +1,16 @@
 #pragma once
 
+#include <furi.h>
+#include <furi_hal.h>
 #include <gui/gui.h>
 #include <gui/view.h>
 #include <gui/view_dispatcher.h>
 #include <gui/scene_manager.h>
 #include <gui/modules/widget.h>
 #include <gui/modules/submenu.h>
-#include <infrared/infrared_worker.h>
-#include <infrared/infrared.h>
+#include <infrared.h>
+#include <infrared_worker.h>
 #include <notification/notification_messages.h>
-#include <furi.h>
-#include <furi_hal.h>
 
 #define IR_ANALYZER_MAX_SIGNALS 32
 
@@ -45,12 +45,10 @@ typedef struct {
     NotificationApp* notifications;
     InfraredWorker*  ir_worker;
 
-    // Vues
-    View*     view_main;
-    Submenu*  submenu;
-    Widget*   widget_detail;
+    View*    view_main;
+    Submenu* submenu;
+    Widget*  widget_detail;
 
-    // Données
     IrAnalyzerSignal signals[IR_ANALYZER_MAX_SIGNALS];
     uint32_t         signal_count;
     uint32_t         selected_signal;

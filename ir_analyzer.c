@@ -53,28 +53,23 @@ IrAnalyzerApp* ir_analyzer_app_alloc(void) {
     app->view_dispatcher = view_dispatcher_alloc();
     app->scene_manager   = scene_manager_alloc(&ir_analyzer_scene_handlers, app);
 
-    view_dispatcher_enable_queue(app->view_dispatcher);
     view_dispatcher_set_event_callback_context(app->view_dispatcher, app);
     view_dispatcher_set_custom_event_callback(app->view_dispatcher, ir_analyzer_custom_event_cb);
     view_dispatcher_set_navigation_event_callback(app->view_dispatcher, ir_analyzer_back_event_cb);
     view_dispatcher_attach_to_gui(app->view_dispatcher, app->gui, ViewDispatcherTypeFullscreen);
 
-    // Vue principale custom
     app->view_main = view_alloc();
     view_set_context(app->view_main, app);
     view_dispatcher_add_view(app->view_dispatcher, IrAnalyzerViewMain, app->view_main);
 
-    // Submenu pour la liste
     app->submenu = submenu_alloc();
     view_dispatcher_add_view(app->view_dispatcher, IrAnalyzerViewSignalList,
                              submenu_get_view(app->submenu));
 
-    // Widget pour le détail
     app->widget_detail = widget_alloc();
     view_dispatcher_add_view(app->view_dispatcher, IrAnalyzerViewSignalDetail,
                              widget_get_view(app->widget_detail));
 
-    // Worker IR
     app->ir_worker = infrared_worker_alloc();
     infrared_worker_rx_set_received_signal_callback(
         app->ir_worker, ir_analyzer_signal_callback, app);
