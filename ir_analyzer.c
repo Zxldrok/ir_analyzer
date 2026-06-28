@@ -28,7 +28,7 @@ static bool signals_match(IrAnalyzerSignal* a, IrAnalyzerSignal* b) {
     }
     return strcmp(a->protocol, b->protocol) == 0
         && a->address == b->address
-        && a->command  == b->command;
+        && a->command == b->command;
 }
 
 static bool save_signal(IrAnalyzerSignal* sig, uint32_t index) {
@@ -38,9 +38,9 @@ static bool save_signal(IrAnalyzerSignal* sig, uint32_t index) {
 
     char path[128];
     if(sig->is_raw) {
-        snprintf(path, sizeof(path), IR_SAVE_PATH "/signal_%lu_RAW.ir", index);
+        snprintf(path, sizeof(path), IR_SAVE_PATH "/signal_%u_RAW.ir", (unsigned int)index);
     } else {
-        snprintf(path, sizeof(path), IR_SAVE_PATH "/signal_%lu_%s.ir", index, sig->protocol);
+        snprintf(path, sizeof(path), IR_SAVE_PATH "/signal_%u_%s.ir", (unsigned int)index, sig->protocol);
     }
 
     File* file = storage_file_alloc(storage);
@@ -48,25 +48,27 @@ static bool save_signal(IrAnalyzerSignal* sig, uint32_t index) {
 
     if(storage_file_open(file, path, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
         char buf[256];
-        int len;
+        size_t len;
 
-        len = snprintf(buf, sizeof(buf), "Filetype: IR signals file\nVersion: 1\n#\n");
+        len = (size_t)snprintf(buf, sizeof(buf), "Filetype: IR signals file\nVersion: 1\n#\n");
         storage_file_write(file, buf, len);
 
         if(sig->is_raw) {
-            len = snprintf(buf, sizeof(buf),
-                "name: RAW_%lu\ntype: raw\nfrequency: 38000\nduty_cycle: 0.33\ndata:");
+            len = (size_t)snprintf(buf, sizeof(buf),
+                "name: RAW_%u\ntype: raw\nfrequency: 38000\nduty_cycle: 0.33\ndata:",
+                (unsigned int)index);
             storage_file_write(file, buf, len);
             uint32_t lim = sig->raw_count < IR_ANALYZER_MAX_RAW ? sig->raw_count : IR_ANALYZER_MAX_RAW;
             for(uint32_t i = 0; i < lim; i++) {
-                len = snprintf(buf, sizeof(buf), " %lu", sig->raw_timings[i]);
+                len = (size_t)snprintf(buf, sizeof(buf), " %u", (unsigned int)sig->raw_timings[i]);
                 storage_file_write(file, buf, len);
             }
             storage_file_write(file, "\n", 1);
         } else {
-            len = snprintf(buf, sizeof(buf),
-                "name: %s_0x%04lX\ntype: parsed\nprotocol: %s\naddress: 0x%04lX\ncommand: 0x%04lX\n",
-                sig->protocol, sig->command, sig->protocol, sig->address, sig->command);
+            len = (size_t)snprintf(buf, sizeof(buf),
+                "name: %s_0x%04X\ntype: parsed\nprotocol: %s\naddress: 0x%04X\ncommand: 0x%04X\n",
+                sig->protocol, (unsigned int)sig->command,
+                sig->protocol, (unsigned int)sig->address, (unsigned int)sig->command);
             storage_file_write(file, buf, len);
         }
         ok = true;
@@ -99,11 +101,10 @@ static void ir_signal_callback(void* ctx, InfraredWorkerSignal* received) {
         infrared_worker_get_raw_signal(received, &timings, &count);
         strncpy(tmp.protocol, "RAW", sizeof(tmp.protocol) - 1);
         tmp.is_raw    = true;
-        tmp.raw_count = count < IR_ANALYZER_MAX_RAW ? (uint32_t)count : IR_ANALYZER_MAX_RAW;
+        tmp.raw_count = (uint32_t)(count < IR_ANALYZER_MAX_RAW ? count : IR_ANALYZER_MAX_RAW);
         memcpy(tmp.raw_timings, timings, tmp.raw_count * sizeof(uint32_t));
     }
 
-    // Déduplication
     for(uint32_t i = 0; i < app->signal_count; i++) {
         if(signals_match(&app->signals[i], &tmp)) {
             app->signals[i].seen_count++;
@@ -140,99 +141,95 @@ static void draw_live(Canvas* canvas, IrAnalyzerApp* app) {
     canvas_draw_str(canvas, 2, 24, "En attente d'un signal...");
     canvas_draw_str(canvas, 2, 36, "Pointe une telecommande");
     canvas_draw_str(canvas, 2, 48, "vers le port IR");
-
     char buf[32];
-    snprintf(buf, sizeof(buf), "Captes: %lu", app->signal_count);
+    snprintf(buf, sizeof(buf), "Captes: %u", (unsigned int)app->signal_count);
     canvas_draw_str(canvas, 2, 62, buf);
-
-    canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str(canvas, 90, 62, "[OK:liste]");
 }
 
 // ── Draw : vue LISTE ──────────────────────────────────────────────────────────
 static void draw_list(Canvas* canvas, IrAnalyzerApp* app) {
+    canvas_set_font(canvas, FontSecondary);
     if(app->signal_count == 0) {
-        canvas_set_font(canvas, FontSecondary);
         canvas_draw_str(canvas, 2, 35, "Aucun signal capte");
+        canvas_draw_str(canvas, 2, 62, "[Back:live]");
         return;
     }
 
-    const int visible = 4;
+    const int32_t visible = 4;
     int32_t start = app->list_index - visible + 1;
     if(start < 0) start = 0;
 
-    for(int i = 0; i < visible; i++) {
+    for(int32_t i = 0; i < visible; i++) {
         int32_t idx = start + i;
         if((uint32_t)idx >= app->signal_count) break;
 
         IrAnalyzerSignal* sig = &app->signals[idx];
         char buf[40];
-        int y = 17 + i * 12;
-
+        int32_t y = 17 + i * 12;
         bool selected = (idx == app->list_index);
+
         if(selected) {
-            canvas_draw_box(canvas, 0, y - 9, 128, 11);
+            canvas_draw_box(canvas, 0, (uint8_t)(y - 9), 128, 11);
             canvas_set_color(canvas, ColorWhite);
         }
 
         if(sig->is_raw) {
-            snprintf(buf, sizeof(buf), "%ld. RAW (%lu t) x%lu", idx + 1, sig->raw_count, sig->seen_count);
+            snprintf(buf, sizeof(buf), "%d. RAW(%u) x%u",
+                (int)(idx + 1), (unsigned int)sig->raw_count, (unsigned int)sig->seen_count);
         } else {
-            snprintf(buf, sizeof(buf), "%ld. %s 0x%04lX x%lu", idx + 1, sig->protocol, sig->command, sig->seen_count);
+            snprintf(buf, sizeof(buf), "%d. %s %04X x%u",
+                (int)(idx + 1), sig->protocol, (unsigned int)sig->command, (unsigned int)sig->seen_count);
         }
         canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str(canvas, 2, y, buf);
+        canvas_draw_str(canvas, 2, (uint8_t)y, buf);
 
         if(selected) canvas_set_color(canvas, ColorBlack);
     }
 
     canvas_set_font(canvas, FontSecondary);
-    canvas_draw_str(canvas, 0, 62, "[OK:detail] [Back:live]");
+    canvas_draw_str(canvas, 0, 62, "[OK:detail][Back:live]");
 }
 
 // ── Draw : vue DETAIL ─────────────────────────────────────────────────────────
 static void draw_detail(Canvas* canvas, IrAnalyzerApp* app) {
-    if(app->signal_count == 0) return;
-    IrAnalyzerSignal* sig = &app->signals[app->list_index];
+    if(app->signal_count == 0 || app->list_index < 0) return;
+    IrAnalyzerSignal* sig = &app->signals[(uint32_t)app->list_index];
     char buf[48];
-    int y = 24;
+    uint8_t y = 24;
 
     canvas_set_font(canvas, FontSecondary);
 
     snprintf(buf, sizeof(buf), "Proto: %s", sig->protocol);
-    canvas_draw_str(canvas, 2, y, buf); y += 11;
+    canvas_draw_str(canvas, 2, y, buf); y = (uint8_t)(y + 11);
 
     if(!sig->is_raw) {
-        snprintf(buf, sizeof(buf), "Addr:  0x%04lX", sig->address);
-        canvas_draw_str(canvas, 2, y, buf); y += 11;
-        snprintf(buf, sizeof(buf), "Cmd:   0x%04lX", sig->command);
-        canvas_draw_str(canvas, 2, y, buf); y += 11;
+        snprintf(buf, sizeof(buf), "Addr:  0x%04X", (unsigned int)sig->address);
+        canvas_draw_str(canvas, 2, y, buf); y = (uint8_t)(y + 11);
+        snprintf(buf, sizeof(buf), "Cmd:   0x%04X", (unsigned int)sig->command);
+        canvas_draw_str(canvas, 2, y, buf); y = (uint8_t)(y + 11);
         snprintf(buf, sizeof(buf), "Repeat: %s", sig->repeat ? "Oui" : "Non");
-        canvas_draw_str(canvas, 2, y, buf); y += 11;
+        canvas_draw_str(canvas, 2, y, buf); y = (uint8_t)(y + 11);
     } else {
-        snprintf(buf, sizeof(buf), "Timings: %lu", sig->raw_count);
-        canvas_draw_str(canvas, 2, y, buf); y += 11;
+        snprintf(buf, sizeof(buf), "Timings: %u", (unsigned int)sig->raw_count);
+        canvas_draw_str(canvas, 2, y, buf); y = (uint8_t)(y + 11);
         if(sig->raw_count > 0) {
-            snprintf(buf, sizeof(buf), "T1: %luus", sig->raw_timings[0]);
-            canvas_draw_str(canvas, 2, y, buf); y += 11;
+            snprintf(buf, sizeof(buf), "T1: %uus", (unsigned int)sig->raw_timings[0]);
+            canvas_draw_str(canvas, 2, y, buf); y = (uint8_t)(y + 11);
         }
     }
-    snprintf(buf, sizeof(buf), "Vus: %lu fois", sig->seen_count);
+    snprintf(buf, sizeof(buf), "Vus: %u fois", (unsigned int)sig->seen_count);
     canvas_draw_str(canvas, 2, y, buf);
-
-    canvas_draw_str(canvas, 0, 62, "[OK:save] [Back:liste]");
+    canvas_draw_str(canvas, 0, 62, "[OK:save][Back:liste]");
 }
 
 // ── Draw principal ────────────────────────────────────────────────────────────
 static void draw_callback(Canvas* canvas, void* ctx) {
     IrAnalyzerApp* app = ctx;
     if(!app) return;
-
     canvas_clear(canvas);
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 2, 10, "IR Analyzer");
     canvas_draw_line(canvas, 0, 12, 127, 12);
-
     switch(app->view) {
     case ViewLive:   draw_live(canvas, app);   break;
     case ViewList:   draw_list(canvas, app);   break;
@@ -244,7 +241,6 @@ static void draw_callback(Canvas* canvas, void* ctx) {
 static void handle_input(IrAnalyzerApp* app, InputEvent* e) {
     if(e->type == InputTypeShort) {
         switch(app->view) {
-
         case ViewLive:
             if(e->key == InputKeyOk) {
                 app->view = ViewList;
@@ -253,7 +249,6 @@ static void handle_input(IrAnalyzerApp* app, InputEvent* e) {
             }
             if(e->key == InputKeyBack) app->running = false;
             break;
-
         case ViewList:
             if(e->key == InputKeyUp && app->list_index > 0)
                 app->list_index--;
@@ -264,10 +259,9 @@ static void handle_input(IrAnalyzerApp* app, InputEvent* e) {
             if(e->key == InputKeyBack)
                 app->view = ViewLive;
             break;
-
         case ViewDetail:
             if(e->key == InputKeyOk && app->signal_count > 0) {
-                bool saved = save_signal(&app->signals[app->list_index], (uint32_t)app->list_index);
+                bool saved = save_signal(&app->signals[(uint32_t)app->list_index], (uint32_t)app->list_index);
                 if(app->notifications)
                     notification_message(app->notifications,
                         saved ? &sequence_blink_green_10 : &sequence_blink_red_10);
@@ -277,14 +271,10 @@ static void handle_input(IrAnalyzerApp* app, InputEvent* e) {
             break;
         }
     }
-
-    // Long press Back depuis liste = effacer tout
-    if(e->type == InputTypeLong && e->key == InputKeyBack) {
-        if(app->view == ViewList) {
-            app->signal_count = 0;
-            app->list_index   = 0;
-            app->view         = ViewLive;
-        }
+    if(e->type == InputTypeLong && e->key == InputKeyBack && app->view == ViewList) {
+        app->signal_count = 0;
+        app->list_index   = 0;
+        app->view         = ViewLive;
     }
 }
 
@@ -309,30 +299,26 @@ int32_t ir_analyzer_app(void* p) {
     infrared_worker_rx_set_received_signal_callback(app->ir_worker, ir_signal_callback, app);
     infrared_worker_rx_start(app->ir_worker);
 
-    app->running     = true;
-    app->view        = ViewLive;
-    app->list_index  = 0;
+    app->running    = true;
+    app->view       = ViewLive;
+    app->list_index = 0;
 
     AppEvent event;
     while(app->running) {
         if(furi_message_queue_get(app->event_queue, &event, 100) == FuriStatusOk) {
-            if(event.type == EventTypeInput) {
+            if(event.type == EventTypeInput)
                 handle_input(app, &event.input);
-            }
             view_port_update(app->view_port);
         }
     }
 
     infrared_worker_rx_stop(app->ir_worker);
     infrared_worker_free(app->ir_worker);
-
     gui_remove_view_port(app->gui, app->view_port);
     view_port_free(app->view_port);
-
     furi_record_close(RECORD_NOTIFICATION);
     furi_record_close(RECORD_GUI);
     furi_message_queue_free(app->event_queue);
     free(app);
-
     return 0;
 }
