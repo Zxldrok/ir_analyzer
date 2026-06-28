@@ -1,0 +1,15 @@
+App(
+    appid="ir_analyzer",
+    name="IR Analyzer",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="ir_analyzer_app",
+    requires=["gui", "infrared"],
+    stack_size=2 * 1024,
+    order=10,
+    fap_icon="ir_analyzer_icon.png",
+    fap_category="Infrared",
+    fap_description="Analyse et décode les signaux infrarouge en temps réel",
+    fap_author="Adrien",
+    fap_version=(1, 0),
+    fap_icon_assets="images",
+)
