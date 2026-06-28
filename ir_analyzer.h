@@ -11,8 +11,8 @@
 #include <string.h>
 #include <stdio.h>
 
-#define IR_ANALYZER_MAX_SIGNALS 32
-#define IR_ANALYZER_MAX_RAW     512
+#define IR_ANALYZER_MAX_SIGNALS 16
+#define IR_ANALYZER_MAX_RAW     64
 #define IR_SAVE_PATH            "/ext/infrared/ir_analyzer"
 
 typedef enum {
