@@ -1,7 +1,6 @@
 #pragma once
 
 #include <furi.h>
-#include <furi_hal.h>
 #include <gui/gui.h>
 #include <gui/view_port.h>
 #include <infrared.h>

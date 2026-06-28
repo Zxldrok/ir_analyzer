@@ -3,10 +3,11 @@ App(
     name="IR Analyzer",
     apptype=FlipperAppType.EXTERNAL,
     entry_point="ir_analyzer_app",
-    stack_size=2 * 2048,
+    stack_size=4 * 1024,
     fap_icon="ir_analyzer_icon.png",
     fap_category="Infrared",
     fap_description="Analyse les signaux infrarouge en temps reel",
     fap_author="Adrien",
     fap_version=(1, 0),
+    fap_libs=["infrared_worker"],
 )
