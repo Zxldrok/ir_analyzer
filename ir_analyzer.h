@@ -29,5 +29,4 @@ typedef struct {
     IrAnalyzerSignal signals[IR_ANALYZER_MAX_SIGNALS];
     uint32_t         signal_count;
     bool             running;
-    FuriMutex*       mutex;
 } IrAnalyzerApp;

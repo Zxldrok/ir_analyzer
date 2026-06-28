@@ -3,7 +3,6 @@
 typedef enum {
     EventTypeInput,
     EventTypeIrSignal,
-    EventTypeTick,
 } EventType;
 
 typedef struct {
@@ -17,11 +16,8 @@ typedef struct {
 // ── Callback IR ───────────────────────────────────────────────────────────────
 static void ir_signal_callback(void* ctx, InfraredWorkerSignal* received) {
     IrAnalyzerApp* app = ctx;
-    furi_mutex_acquire(app->mutex, FuriWaitForever);
-    if(app->signal_count >= IR_ANALYZER_MAX_SIGNALS) {
-        furi_mutex_release(app->mutex);
-        return;
-    }
+
+    if(app->signal_count >= IR_ANALYZER_MAX_SIGNALS) return;
 
     IrAnalyzerSignal* sig = &app->signals[app->signal_count];
     memset(sig, 0, sizeof(IrAnalyzerSignal));
@@ -43,11 +39,13 @@ static void ir_signal_callback(void* ctx, InfraredWorkerSignal* received) {
     }
 
     app->signal_count++;
-    furi_mutex_release(app->mutex);
 
     AppEvent event = {.type = EventTypeIrSignal};
     furi_message_queue_put(app->event_queue, &event, 0);
-    notification_message(app->notifications, &sequence_blink_green_10);
+
+    if(app->notifications) {
+        notification_message(app->notifications, &sequence_blink_green_10);
+    }
 }
 
 // ── Callback input ────────────────────────────────────────────────────────────
@@ -60,20 +58,22 @@ static void input_callback(InputEvent* input_event, void* ctx) {
 // ── Rendu ─────────────────────────────────────────────────────────────────────
 static void draw_callback(Canvas* canvas, void* ctx) {
     IrAnalyzerApp* app = ctx;
-    furi_mutex_acquire(app->mutex, FuriWaitForever);
-    canvas_clear(canvas);
+    if(!app) return;
 
+    canvas_clear(canvas);
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 2, 10, "IR Analyzer");
     canvas_draw_line(canvas, 0, 13, 127, 13);
     canvas_set_font(canvas, FontSecondary);
 
-    if(app->signal_count == 0) {
+    uint32_t count = app->signal_count;
+
+    if(count == 0) {
         canvas_draw_str(canvas, 4, 30, "En attente d'un signal...");
         canvas_draw_str(canvas, 4, 42, "Pointe une telecommande");
         canvas_draw_str(canvas, 4, 54, "vers le port IR");
     } else {
-        IrAnalyzerSignal* sig = &app->signals[app->signal_count - 1];
+        IrAnalyzerSignal* sig = &app->signals[count - 1];
         char buf[32];
 
         canvas_draw_str(canvas, 2, 25, "Proto:");
@@ -93,11 +93,9 @@ static void draw_callback(Canvas* canvas, void* ctx) {
         }
     }
 
-    canvas_set_font(canvas, FontSecondary);
     char count_buf[24];
     snprintf(count_buf, sizeof(count_buf), "Total: %u", (unsigned int)app->signal_count);
     canvas_draw_str(canvas, 0, 62, count_buf);
-    furi_mutex_release(app->mutex);
 }
 
 // ── Point d'entrée ────────────────────────────────────────────────────────────
@@ -108,9 +106,8 @@ int32_t ir_analyzer_app(void* p) {
     furi_check(app);
     memset(app, 0, sizeof(IrAnalyzerApp));
 
-    app->event_queue  = furi_message_queue_alloc(8, sizeof(AppEvent));
-    app->mutex        = furi_mutex_alloc(FuriMutexTypeNormal);
-    app->gui          = furi_record_open(RECORD_GUI);
+    app->event_queue   = furi_message_queue_alloc(8, sizeof(AppEvent));
+    app->gui           = furi_record_open(RECORD_GUI);
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
 
     app->view_port = view_port_alloc();
@@ -143,10 +140,9 @@ int32_t ir_analyzer_app(void* p) {
     gui_remove_view_port(app->gui, app->view_port);
     view_port_free(app->view_port);
 
-    furi_record_close(RECORD_GUI);
     furi_record_close(RECORD_NOTIFICATION);
+    furi_record_close(RECORD_GUI);
     furi_message_queue_free(app->event_queue);
-    furi_mutex_free(app->mutex);
     free(app);
 
     return 0;
