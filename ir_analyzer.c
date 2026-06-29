@@ -78,12 +78,6 @@ static void tx_sent_callback(void* context) {
     furi_message_queue_put(app->queue, &ev, 0);
 }
 
-static void repeater_timer_callback(void* context) {
-    IrApp* app = context;
-    AppEvent ev = {.type = EventRepeaterTx};
-    furi_message_queue_put(app->queue, &ev, 0);
-}
-
 static void setup_tx(IrApp* app, int32_t idx) {
     if(idx < 0 || (uint32_t)idx >= app->signal_count) return;
     IrSignal* sig = &app->signals[idx];
@@ -167,9 +161,6 @@ static void ir_callback(void* ctx, InfraredWorkerSignal* received) {
     furi_message_queue_put(app->queue, &ev, 0);
     ev.type = EventSignal;
     furi_message_queue_put(app->queue, &ev, 0);
-
-    if(app->repeater_mode && app->last_sig_idx >= 0)
-        furi_timer_start(app->repeater_timer, app->repeater_delay);
 }
 
 static void input_callback(InputEvent* e, void* ctx) {
@@ -200,22 +191,6 @@ static void draw_footer(Canvas* canvas, const char* left, const char* right) {
 
 static void draw_live(Canvas* canvas, IrApp* app) {
     char buf[64];
-
-    if(app->repeater_mode) {
-        canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str(canvas, 2, HEADER_Y, "IR Repeater");
-        canvas_draw_line(canvas, 0, HEADER_LINE, 127, HEADER_LINE);
-        canvas_set_font(canvas, FontPrimary);
-        canvas_draw_str_aligned(canvas, 64, 22, AlignCenter, AlignCenter, "REPEATER ON");
-        canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str_aligned(canvas, 64, 34, AlignCenter, AlignCenter,
-            "Retransmet tout signal recu");
-        snprintf(buf, sizeof(buf), "Delay: %u ms", (unsigned)app->repeater_delay);
-        canvas_draw_str_aligned(canvas, 64, 44, AlignCenter, AlignCenter, buf);
-        draw_footer(canvas, "[OK:list]", "[LgOK:off]");
-        return;
-    }
-
     uint32_t elapsed = (furi_get_tick() - app->session_start) / 1000;
     snprintf(buf, sizeof(buf), "%um%us | %u sig",
         (unsigned)(elapsed / 60), (unsigned)(elapsed % 60), (unsigned)app->signal_count);
@@ -400,8 +375,7 @@ static void draw_callback(Canvas* canvas, void* ctx) {
     canvas_clear(canvas);
     switch(app->view) {
     case ViewLive:
-        if(!app->repeater_mode)
-            draw_header(canvas, app->signal_count > 0 ? "LIVE" : NULL);
+        draw_header(canvas, app->signal_count > 0 ? "LIVE" : NULL);
         draw_live(canvas, app);
         break;
     case ViewList:
@@ -428,26 +402,11 @@ static void handle_input(IrApp* app, InputEvent* e) {
         switch(app->view) {
         case ViewLive:
             if(e->key == InputKeyOk) {
-                if(app->repeater_mode) {
-                    app->repeater_mode = false;
-                    furi_timer_stop(app->repeater_timer);
-                }
                 app->view = ViewList;
                 if(app->signal_count > 0)
                     app->list_index = (int32_t)app->signal_count - 1;
             } else if(e->key == InputKeyBack) {
-                if(app->repeater_mode) {
-                    app->repeater_mode = false;
-                    furi_timer_stop(app->repeater_timer);
-                } else {
-                    app->running = false;
-                }
-            } else if(e->key == InputKeyLeft) {
-                if(app->repeater_mode && app->repeater_delay > 50)
-                    app->repeater_delay -= 50;
-            } else if(e->key == InputKeyRight) {
-                if(app->repeater_mode && app->repeater_delay < 1000)
-                    app->repeater_delay += 50;
+                app->running = false;
             }
             break;
         case ViewList:
@@ -486,11 +445,6 @@ static void handle_input(IrApp* app, InputEvent* e) {
     } else if(e->type == InputTypeLong) {
         switch(app->view) {
         case ViewLive:
-            if(e->key == InputKeyOk) {
-                app->repeater_mode = !app->repeater_mode;
-                if(!app->repeater_mode)
-                    furi_timer_stop(app->repeater_timer);
-            }
             break;
         case ViewList:
             if(e->key == InputKeyOk && app->signal_count > 0)
@@ -541,13 +495,10 @@ int32_t ir_analyzer_app(void* p) {
     infrared_worker_rx_set_received_signal_callback(app->worker, ir_callback, app);
     infrared_worker_rx_start(app->worker);
 
-    app->repeater_timer = furi_timer_alloc(repeater_timer_callback, FuriTimerTypeOnce, app);
-
     app->running = true;
     app->view = ViewLive;
     app->list_index = 0;
     app->turbo_repeat = 1;
-    app->repeater_delay = 200;
     app->last_sig_idx = -1;
     app->tx_sig_idx = -1;
     app->tx_state = TxIdle;
@@ -569,9 +520,6 @@ int32_t ir_analyzer_app(void* p) {
                     app->tx_completed = 0;
                     stop_tx(app);
                 }
-            } else if(event.type == EventRepeaterTx) {
-                if(app->repeater_mode && app->last_sig_idx >= 0 && app->tx_state == TxIdle)
-                    start_tx(app, app->last_sig_idx);
             } else if(event.type == EventNotifyGreen) {
                 notification_message(app->notifications, &sequence_blink_green_10);
             } else if(event.type == EventNotifyYellow) {
@@ -583,7 +531,6 @@ int32_t ir_analyzer_app(void* p) {
         }
     }
 
-    furi_timer_free(app->repeater_timer);
     infrared_worker_rx_stop(app->worker);
     infrared_worker_free(app->worker);
     gui_remove_view_port(app->gui, app->view_port);

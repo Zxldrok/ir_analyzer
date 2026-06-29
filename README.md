@@ -7,7 +7,6 @@ Analyse, décode, rejoue et retransmet les signaux infrarouges en temps réel su
 - **Capture** de tout signal IR (NEC, Samsung, RC5, Sony, Kaseikyo, RAW…)
 - **Déduplication** — les signaux identiques sont comptés, pas dupliqués
 - **Turbo burst** — envoie le signal 1 à 5 fois en rafale
-- **Repeater mode** — retransmet automatiquement tout signal reçu avec un délai configurable (50–1000ms)
 - **Save** — sauvegarde un ou tous les signaux au format `.ir` sur la carte SD
 - **Delete** — supprime un signal de la liste
 - **Waveform** — visualisation graphique des timings pour les signaux RAW
@@ -41,9 +40,7 @@ Le `.fap` est généré dans `dist/`.
 | Bouton | Action |
 |--------|--------|
 | OK | Liste des signaux |
-| Back long | Quitter l'app |
-| Long OK | Activer/désactiver le **repeater mode** |
-| ← / → | Ajuster le délai du repeater |
+| Back | Quitter l'app |
 
 ### Liste des signaux
 | Bouton | Action |

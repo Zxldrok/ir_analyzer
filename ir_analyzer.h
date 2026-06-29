@@ -14,7 +14,6 @@
 #define IR_MAX_TIMINGS    256
 #define IR_SAVE_PATH      "/ext/infrared/ir_analyzer"
 #define TURBO_MAX         5
-#define REPEATER_DELAY_MS 200
 
 typedef enum {
     ViewLive,
@@ -27,7 +26,6 @@ typedef enum {
     EventInput,
     EventSignal,
     EventTxComplete,
-    EventRepeaterTx,
     EventNotifyGreen,
     EventNotifyYellow,
 } EventType;
@@ -59,8 +57,6 @@ typedef struct {
     FuriMessageQueue* queue;
     NotificationApp*  notifications;
     InfraredWorker*   worker;
-    FuriTimer*        repeater_timer;
-
     IrSignal          signals[IR_MAX_SIGNALS];
     uint32_t          signal_count;
     bool              running;
@@ -74,8 +70,6 @@ typedef struct {
     int32_t           tx_sig_idx;
     TxState           tx_state;
 
-    bool              repeater_mode;
-    uint32_t          repeater_delay;
     int32_t           last_sig_idx;
 
     uint32_t          session_start;
