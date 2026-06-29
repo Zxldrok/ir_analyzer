@@ -1,76 +1,78 @@
 # IR Analyzer — Application Flipper Zero
 
-Analyse et décode les signaux infrarouge en temps réel directement sur ton Flipper Zero.
+Analyse, décode, rejoue et retransmet les signaux infrarouges en temps réel sur Flipper Zero.
 
 ## Fonctionnalités
 
-- Réception et décodage automatique des signaux IR (NEC, Samsung, RC5, Sony, Kaseikyo, RAW…)
-- Affichage en temps réel du protocole, de l'adresse et de la commande
-- Liste scrollable de tous les signaux capturés (jusqu'à 32)
-- Vue détaillée par signal avec toutes les infos décodées
-- LED verte qui clignote à chaque signal reçu
+- **Capture** de tout signal IR (NEC, Samsung, RC5, Sony, Kaseikyo, RAW…)
+- **Déduplication** — les signaux identiques sont comptés, pas dupliqués
+- **Turbo burst** — envoie le signal 1 à 5 fois en rafale
+- **Repeater mode** — retransmet automatiquement tout signal reçu avec un délai configurable (50–1000ms)
+- **Save** — sauvegarde un ou tous les signaux au format `.ir` sur la carte SD
+- **Delete** — supprime un signal de la liste
+- **Waveform** — visualisation graphique des timings pour les signaux RAW
+- **Session stats** — durée de session et nombre de signaux capturés
+- **LED feedback** — verte (nouveau signal), jaune (déjà vu), bleue (transmission)
 
-## Structure des fichiers
+## Structure
 
 ```
 ir_analyzer/
-├── application.fam                        ← Déclaration de l'app (ufbt)
-├── ir_analyzer.h                          ← Types et struct principale
-├── ir_analyzer.c                          ← Init, worker IR, point d'entrée
-└── scenes/
-    ├── ir_analyzer_scene.h                ← Headers communs des scènes
-    ├── ir_analyzer_scene.c                ← Table des handlers
-    ├── ir_analyzer_scene_main.c           ← Écran principal (live)
-    ├── ir_analyzer_scene_signal_list.c    ← Liste des signaux capturés
-    └── ir_analyzer_scene_signal_detail.c  ← Détail d'un signal
+├── application.fam       ← Déclaration de l'app (ufbt)
+├── ir_analyzer.h         ← Types, structs, defines
+├── ir_analyzer.c         ← Tout le code : init, worker IR, UI, input
+├── ir_analyzer_icon.png  ← Icône 10x10
+└── .gitignore
 ```
 
-## Compilation et installation
-
-### Prérequis
-
-- [uFBT](https://github.com/flipperdevices/flipperzero-ufbt) installé
-- Flipper Zero connecté en USB
-
-### Étapes
+## Compilation
 
 ```bash
-# 1. Copier le dossier ir_analyzer dans un emplacement de travail
-# 2. Ouvrir un terminal dans ce dossier
-
-# Compiler
-ufbt
-
-# Compiler ET lancer directement sur le Flipper (le plus pratique)
-ufbt launch
-
-# Ou compiler et copier le .fap manuellement sur la SD
-ufbt build
-# → Le .fap se trouve dans dist/
+# Prérequis : uFBT (https://github.com/flipperdevices/flipperzero-ufbt)
+ufbt          # Compiler
+ufbt launch   # Compiler + lancer sur Flipper branché
 ```
 
-## Utilisation
-
-1. Lancer l'app depuis `Apps > Infrared > IR Analyzer`
-2. L'écran affiche **"En attente d'un signal"**
-3. Pointer n'importe quelle télécommande vers le Flipper et appuyer sur un bouton
-4. Le protocole, l'adresse et la commande s'affichent instantanément
-5. Appuyer sur **OK** pour voir la liste de tous les signaux capturés
-6. Sélectionner un signal pour voir son détail complet
+Le `.fap` est généré dans `dist/`.
 
 ## Navigation
 
+### Écran Live
 | Bouton | Action |
 |--------|--------|
-| OK     | Ouvrir la liste des signaux |
-| Back   | Revenir / Quitter |
-| Haut/Bas | Naviguer dans la liste |
+| OK | Liste des signaux |
+| Back long | Quitter l'app |
+| Long OK | Activer/désactiver le **repeater mode** |
+| ← / → | Ajuster le délai du repeater |
+
+### Liste des signaux
+| Bouton | Action |
+|--------|--------|
+| ↑ / ↓ | Naviguer |
+| ← / → | Sauter de 4 en 4 |
+| OK | Détail du signal |
+| Long OK | **Sauvegarder tous** les signaux |
+| Back | Retour live |
+| Long Back | **Effacer toute** la liste |
+
+### Détail d'un signal
+| Bouton | Action |
+|--------|--------|
+| ← / → | Changer le nombre de répétitions (turbo 1–5) |
+| OK | **Sauvegarder** le signal |
+| Long OK | **Transmettre** le signal (× turbo repeats) |
+| Back | Retour liste |
+| Long Back | **Supprimer** le signal |
+
+### Transmission
+| Bouton | Action |
+|--------|--------|
+| Back | Arrêter la transmission |
 
 ## Protocoles supportés
 
-Tous les protocoles supportés nativement par le firmware Flipper :
-NEC, NEC42, Samsung32, RC5, RC5X, RC6, SIRC, SIRC15, SIRC20, Kaseikyo, RCA, RAW
+NEC, NEC42, Samsung32, RC5, RC5X, RC6, SIRC, SIRC15, SIRC20, Kaseikyo, RCA, RAW.
 
 ---
 
-*App créée par Adrien — compatible avec Momentum, Unleashed, OFW*
+*App créée par Adrien — compatible Momentum, Unleashed, OFW*
