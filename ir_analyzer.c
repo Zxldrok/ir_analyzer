@@ -119,6 +119,7 @@ static void stop_tx(IrApp* app) {
         notification_message(app->notifications, &sequence_blink_stop);
     app->tx_state = TxIdle;
     app->tx_remaining = 0;
+    app->tx_completed = 0;
     app->view = ViewDetail;
 }
 
@@ -157,16 +158,14 @@ static void ir_callback(void* ctx, InfraredWorkerSignal* received) {
     if(matched >= 0) {
         app->signals[matched].seen_count++;
         app->last_sig_idx = matched;
-        if(app->notifications)
-            notification_message(app->notifications, &sequence_blink_yellow_10);
     } else {
         app->signals[app->signal_count] = tmp;
         app->last_sig_idx = (int32_t)app->signal_count;
         app->signal_count++;
-        if(app->notifications)
-            notification_message(app->notifications, &sequence_blink_green_10);
     }
-    AppEvent ev = {.type = EventSignal};
+    AppEvent ev = {.type = matched >= 0 ? EventNotifyYellow : EventNotifyGreen};
+    furi_message_queue_put(app->queue, &ev, 0);
+    ev.type = EventSignal;
     furi_message_queue_put(app->queue, &ev, 0);
 
     if(app->repeater_mode && app->last_sig_idx >= 0)
@@ -176,7 +175,7 @@ static void ir_callback(void* ctx, InfraredWorkerSignal* received) {
 static void input_callback(InputEvent* e, void* ctx) {
     IrApp* app = ctx;
     AppEvent ev = {.type = EventInput, .input = *e};
-    furi_message_queue_put(app->queue, &ev, FuriWaitForever);
+    furi_message_queue_put(app->queue, &ev, 0);
 }
 
 // ── Drawing ───────────────────────────────────────────────────────────────
@@ -227,8 +226,8 @@ static void draw_live(Canvas* canvas, IrApp* app) {
         canvas_set_font(canvas, FontSecondary);
         canvas_draw_str_aligned(canvas, 64, 38, AlignCenter, AlignCenter,
             "Pointe la telecommande");
-    } else {
-        IrSignal* s = &app->signals[app->signal_count - 1];
+    } else if(app->last_sig_idx >= 0) {
+        IrSignal* s = &app->signals[(uint32_t)app->last_sig_idx];
         canvas_set_font(canvas, FontKeyboard);
         canvas_draw_str_aligned(canvas, 64, 20, AlignCenter, AlignCenter, s->info);
         canvas_set_font(canvas, FontSecondary);
@@ -348,7 +347,8 @@ static void draw_detail(Canvas* canvas, IrApp* app) {
         canvas_draw_str(canvas, 2, 33, buf);
         snprintf(buf, sizeof(buf), "Dur: %u ms", (unsigned)(total_us / 1000));
         canvas_draw_str(canvas, 68, 33, buf);
-        snprintf(buf, sizeof(buf), "Min: %u  Max: %u", (unsigned)min_t, (unsigned)max_t);
+        uint32_t freq = s->frequency ? s->frequency : 38000;
+        snprintf(buf, sizeof(buf), "%lu Hz | %u us min", (unsigned long)freq, (unsigned)min_t);
         canvas_draw_str(canvas, 2, 43, buf);
         draw_waveform(canvas, s, 2, 124);
     } else {
@@ -374,13 +374,12 @@ static void draw_transmit(Canvas* canvas, IrApp* app) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str_aligned(canvas, 64, 22, AlignCenter, AlignCenter, "Envoi en cours...");
 
-    uint32_t done = app->turbo_repeat - app->tx_remaining;
     canvas_draw_rframe(canvas, 30, 28, 68, 13, 3);
-    uint32_t fill_w = (done * 64) / (app->turbo_repeat > 0 ? app->turbo_repeat : 1);
+    uint32_t fill_w = (app->tx_completed * 64) / (app->turbo_repeat > 0 ? app->turbo_repeat : 1);
     if(fill_w > 0) canvas_draw_rbox(canvas, 32, 30, fill_w, 9, 2);
 
     char buf[16];
-    snprintf(buf, sizeof(buf), "%u/%u", (unsigned)done, (unsigned)app->turbo_repeat);
+    snprintf(buf, sizeof(buf), "%u/%u", (unsigned)app->tx_completed, (unsigned)app->turbo_repeat);
     canvas_set_color(canvas, ColorWhite);
     canvas_set_font(canvas, FontSecondary);
     canvas_draw_str_aligned(canvas, 64, 34, AlignCenter, AlignCenter, buf);
@@ -505,7 +504,8 @@ static void handle_input(IrApp* app, InputEvent* e) {
             break;
         case ViewDetail:
             if(e->key == InputKeyOk && app->signal_count > 0) {
-                app->tx_remaining = app->turbo_repeat - 1;
+                app->tx_remaining = app->turbo_repeat;
+                app->tx_completed = 0;
                 start_tx(app, app->list_index);
             } else if(e->key == InputKeyBack) {
                 delete_signal(app, app->list_index);
@@ -551,24 +551,31 @@ int32_t ir_analyzer_app(void* p) {
     app->last_sig_idx = -1;
     app->tx_sig_idx = -1;
     app->tx_state = TxIdle;
+    app->tx_completed = 0;
     app->session_start = furi_get_tick();
 
     AppEvent event;
     while(app->running) {
         if(furi_message_queue_get(app->queue, &event, 100) == FuriStatusOk) {
             if(event.type == EventTxComplete) {
-                if(app->tx_state == TxActive && app->tx_remaining > 0) {
+                if(app->tx_state == TxActive && app->tx_remaining > 1) {
                     app->tx_remaining--;
+                    app->tx_completed++;
                     setup_tx(app, app->tx_sig_idx);
                     infrared_worker_tx_start(app->worker);
                 } else {
                     app->tx_state = TxIdle;
                     app->tx_remaining = 0;
+                    app->tx_completed = 0;
                     stop_tx(app);
                 }
             } else if(event.type == EventRepeaterTx) {
                 if(app->repeater_mode && app->last_sig_idx >= 0 && app->tx_state == TxIdle)
                     start_tx(app, app->last_sig_idx);
+            } else if(event.type == EventNotifyGreen) {
+                notification_message(app->notifications, &sequence_blink_green_10);
+            } else if(event.type == EventNotifyYellow) {
+                notification_message(app->notifications, &sequence_blink_yellow_10);
             } else if(event.type == EventInput) {
                 handle_input(app, &event.input);
             }

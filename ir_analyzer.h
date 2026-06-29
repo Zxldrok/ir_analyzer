@@ -28,6 +28,8 @@ typedef enum {
     EventSignal,
     EventTxComplete,
     EventRepeaterTx,
+    EventNotifyGreen,
+    EventNotifyYellow,
 } EventType;
 
 typedef struct {
@@ -68,6 +70,7 @@ typedef struct {
 
     uint32_t          turbo_repeat;
     uint32_t          tx_remaining;
+    uint32_t          tx_completed;
     int32_t           tx_sig_idx;
     TxState           tx_state;
 
