@@ -3,16 +3,14 @@
 #include <furi.h>
 #include <gui/gui.h>
 #include <gui/view_port.h>
-#include <infrared.h>
-#include <infrared_worker.h>
+#include <input/input.h>
 #include <notification/notification_messages.h>
-#include <storage/storage.h>
 #include <string.h>
 #include <stdio.h>
 
-#define IR_ANALYZER_MAX_SIGNALS 16
-#define IR_ANALYZER_MAX_RAW     64
-#define IR_SAVE_PATH            "/ext/infrared/ir_analyzer"
+#define IR_MAX_SIGNALS   16
+#define IR_MAX_TIMINGS   128
+#define IR_SAVE_PATH     "/ext/infrared/ir_analyzer"
 
 typedef enum {
     ViewLive,
@@ -21,28 +19,23 @@ typedef enum {
 } AppView;
 
 typedef struct {
-    char     protocol[32];
-    uint32_t address;
-    uint32_t command;
-    bool     repeat;
     bool     is_raw;
-    uint32_t raw_count;
-    uint32_t raw_timings[IR_ANALYZER_MAX_RAW];
+    char     info[48];
+    uint32_t timings[IR_MAX_TIMINGS];
+    uint32_t timing_count;
     uint32_t seen_count;
-} IrAnalyzerSignal;
+} IrSignal;
 
 typedef struct {
     Gui*              gui;
     ViewPort*         view_port;
-    FuriMessageQueue* event_queue;
+    FuriMessageQueue* queue;
     NotificationApp*  notifications;
-    InfraredWorker*   ir_worker;
 
-    IrAnalyzerSignal  signals[IR_ANALYZER_MAX_SIGNALS];
+    IrSignal          signals[IR_MAX_SIGNALS];
     uint32_t          signal_count;
     bool              running;
 
     AppView           view;
     int32_t           list_index;
-    uint32_t          last_signal_count;
-} IrAnalyzerApp;
+} IrApp;
