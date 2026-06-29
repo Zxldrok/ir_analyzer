@@ -9,5 +9,4 @@ App(
     fap_description="Analyse les signaux infrarouge en temps reel",
     fap_author="Adrien",
     fap_version=(1, 0),
-    fap_libs=["infrared_worker"],
 )
